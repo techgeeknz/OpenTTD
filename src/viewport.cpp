@@ -181,6 +181,8 @@ static void MarkViewportDirty(const Viewport *vp, int left, int top, int right, 
 
 static ViewportDrawer _vd;
 
+static std::vector<Viewport *> _viewport_window_cache;
+
 TileHighlightData _thd;
 static TileInfo *_cur_ti;
 bool _draw_bounding_boxes = false;
@@ -200,6 +202,7 @@ void DeleteWindowViewport(Window *w)
 {
 	if (w->viewport == nullptr) return;
 
+	_viewport_window_cache.erase(std::remove(_viewport_window_cache.begin(), _viewport_window_cache.end(), w->viewport), _viewport_window_cache.end());
 	delete w->viewport->overlay;
 	free(w->viewport);
 	w->viewport = nullptr;
@@ -260,6 +263,7 @@ void InitializeWindowViewport(Window *w, int x, int y,
 	w->viewport = vp;
 	vp->virtual_left = 0; // pt.x;
 	vp->virtual_top = 0;  // pt.y;
+	_viewport_window_cache.push_back(vp);
 }
 
 static Point _vp_move_offs;
@@ -1478,11 +1482,8 @@ void ViewportSign::MarkDirty(ZoomLevel maxzoom) const
 		zoomlevels[zoom].bottom = this->top    + ScaleByZoom(VPSM_TOP + FONT_HEIGHT_NORMAL + VPSM_BOTTOM + 1, zoom);
 	}
 
-	Window *w;
-	FOR_ALL_WINDOWS_FROM_BACK(w) {
-		Viewport *vp = w->viewport;
-		if (vp != nullptr && vp->zoom <= maxzoom) {
-			assert(vp->width != 0);
+	for (Viewport *vp : _viewport_window_cache) {
+		if (vp->zoom <= maxzoom) {
 			Rect &zl = zoomlevels[vp->zoom];
 			MarkViewportDirty(vp, zl.left, zl.top, zl.right, zl.bottom);
 		}
@@ -1835,7 +1836,6 @@ void UpdateViewportPosition(Window *w)
 		int delta_x = w->viewport->dest_scrollpos_x - w->viewport->scrollpos_x;
 		int delta_y = w->viewport->dest_scrollpos_y - w->viewport->scrollpos_y;
 
-		bool update_overlay = false;
 		if (delta_x != 0 || delta_y != 0) {
 			if (_settings_client.gui.smooth_scroll) {
 				int max_scroll = ScaleByMapSize1D(512 * ZOOM_LVL_BASE);
@@ -1846,14 +1846,11 @@ void UpdateViewportPosition(Window *w)
 				w->viewport->scrollpos_x = w->viewport->dest_scrollpos_x;
 				w->viewport->scrollpos_y = w->viewport->dest_scrollpos_y;
 			}
-			update_overlay = (w->viewport->scrollpos_x == w->viewport->dest_scrollpos_x &&
-								w->viewport->scrollpos_y == w->viewport->dest_scrollpos_y);
 		}
 
 		ClampViewportToMap(vp, &w->viewport->scrollpos_x, &w->viewport->scrollpos_y);
 
 		SetViewportPosition(w, w->viewport->scrollpos_x, w->viewport->scrollpos_y);
-		if (update_overlay) RebuildViewportOverlay(w);
 	}
 }
 
