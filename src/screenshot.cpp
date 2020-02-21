@@ -772,6 +772,7 @@ void SetupScreenshotViewport(ScreenshotType t, ViewPort *vp)
 			break;
 		}
 	}
+	UpdateViewportSizeZoom(vp);
 }
 
 /**
