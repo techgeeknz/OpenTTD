@@ -3478,6 +3478,8 @@ void ReInitAllWindows()
  * @param clss    The class of the window to position.
  * @param setting The actual setting used for the window's position.
  * @return X coordinate of left edge of the repositioned window.
+ *
+ * @todo Replace \c setting magic numbers with an enumeration?
  */
 static int PositionWindow(Window *w, WindowClass clss, int setting)
 {
@@ -3493,6 +3495,7 @@ static int PositionWindow(Window *w, WindowClass clss, int setting)
 		default: w->left = 0; break;
 	}
 	if (w->viewport != nullptr) w->viewport->left += w->left - old_left;
+	/* TODO: Invalidate only the old and new rectangles? */
 	AddDirtyBlock(0, w->top, _screen.width, w->top + w->height); // invalidate the whole row
 	return w->left;
 }
