@@ -66,7 +66,7 @@ static inline T SB(T &x, const uint8 s, const uint8 n, const U d)
  * Add \a i to \a n bits of \a x starting at bit \a s.
  *
  * This adds the value of \a i on \a n bits of \a x starting at bit \a s. The parameters \a x,
- * \a s, \a i are similar to #GB. Besides, \ a x must be a variable as the result are
+ * \a s, \a i are similar to #GB. Besides, \a x must be a variable as the result are
  * saved there. An overflow does not affect the following bits of the given
  * bit window and is simply ignored.
  *
