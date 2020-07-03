@@ -10,6 +10,9 @@
 #ifndef MATH_FUNC_HPP
 #define MATH_FUNC_HPP
 
+#include "../stdafx.h"
+#include <limits>
+
 /**
  * Returns the maximum of two values.
  *
@@ -81,6 +84,18 @@ template <typename T>
 static inline T abs(const T a)
 {
 	return (a < (T)0) ? -a : a;
+}
+
+/**
+ * Returns the sign of (scalar) variable.
+ *
+ * @param a The value to obtain the sign of
+ * @return -1 if a < 0, +1 if a > 0, a otherwise
+ */
+template <typename T>
+static inline T signum(const T a)
+{
+	return likely(a > (T)0) ? 1 : (likely(a < (T)0) ? -1 : a);
 }
 
 /**
@@ -336,6 +351,8 @@ static inline uint Ceil(const uint a, const uint b)
  */
 static inline int RoundDivSU(const int a, const uint b)
 {
+	if (unlikely(b >= static_cast<uint>(std::numeric_limits<int>::max()))) return 0;
+
 	const int b_ = static_cast<int>(b);
 	if (a > 0) {
 		/* 0.5 is rounded to 1 */
@@ -354,6 +371,8 @@ static inline int RoundDivSU(const int a, const uint b)
  */
 static inline int DivAwayFromZero(const int a, const uint b)
 {
+	if (unlikely(b >= static_cast<uint>(std::numeric_limits<int>::max()))) return signum(a);
+
 	const int b_ = static_cast<int>(b);
 	if (a > 0) {
 		return (a + b_ - 1) / b_;
@@ -371,6 +390,8 @@ static inline int DivAwayFromZero(const int a, const uint b)
  */
 static inline int DivTowardsNegativeInf(const int a, const uint b)
 {
+	if (unlikely(b >= static_cast<uint>(std::numeric_limits<int>::max()))) return min(0, signum(a));
+
 	const int b_ = static_cast<int>(b);
 	return (a / b_) - (a % b_ < 0 ? 1 : 0);
 }
@@ -383,6 +404,8 @@ static inline int DivTowardsNegativeInf(const int a, const uint b)
  */
 static inline int DivTowardsPositiveInf(const int a, const uint b)
 {
+	if (unlikely(b >= static_cast<uint>(std::numeric_limits<int>::max()))) return max(0, signum(a));
+
 	const int b_ = static_cast<int>(b);
 	return (a / b_) + (a % b_ > 0 ? 1 : 0);
 }
