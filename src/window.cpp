@@ -885,6 +885,78 @@ static bool MayBeShown(const Window *w)
 }
 
 /**
+ * Helper class to encapsulate the state of \c DrawOverlappedWindow, below.
+ */
+class DrawOverlappedWindowHelper {
+	Window * const w; ///< The window being redrawn.
+
+public:
+	inline DrawOverlappedWindowHelper(Window * const w) : w(w) {}
+
+	void operator() (Window const * const w_from, int left, int top, int right, int bottom) const
+	{
+		const Window *v;
+		FOR_ALL_WINDOWS_FROM_BACK_FROM(v, w_from) {
+			if (!MayBeShown(v)) {
+				/* Window 'v' is not visible, no occulsion possible. */
+				continue;
+			}
+
+			/* Cache the edges of window 'v' */
+			const int v_left = v->left;
+			const int v_top = v->top;
+			const int v_right = v->left + v->width;
+			const int v_bottom = v->top + v->height;
+
+			if (right <= v_left || bottom <= v_top || left >= v_right || top >= v_bottom) {
+				/* Window v and the dirty part of window 'w' do not intersect with each other */
+				continue;
+			}
+
+			if (left < v_left) {
+				/* Window 'v' occludes window 'w'; split at left edge.
+				 * Draw the non-occluded part recursively, then fall through to trim the rest of the occluded parts.
+				 */
+				(*this)(v->z_front, left, top, v_left, bottom);
+				left = v_left;
+			}
+
+			if (right > v_right) {
+				/* Window 'v' occludes window 'w'; split at right edge. */
+				(*this)(v->z_front, v_right, top, right, bottom);
+				right = v_right;
+			}
+
+			if (top < v_top) {
+				/* Window 'v' occludes window 'w'; split at top edge. */
+				(*this)(v->z_front, left, top, right, v_top);
+				top = v_top;
+			}
+
+			if (bottom > v_bottom) {
+				/* Window 'v' occludes window 'w'; split at bottom edge. */
+				(*this)(v->z_front, left, v_bottom, right, bottom);
+				bottom = v_bottom;
+			}
+
+			/* Window 'v' completely occludes (the dirty part of) window 'w' */
+			return;
+		}
+
+		/* Setup blitter, and dispatch a repaint event to window *wz */
+		DrawPixelInfo *dp = _cur_dpi;
+		dp->width = right - left;
+		dp->height = bottom - top;
+		dp->left = left - this->w->left;
+		dp->top = top - this->w->top;
+		dp->pitch = _screen.pitch;
+		dp->dst_ptr = BlitterFactory::GetCurrentBlitter()->MoveTo(_screen.dst_ptr, left, top);
+		dp->zoom = ZOOM_LVL_NORMAL;
+		this->w->OnPaint();
+	}
+};
+
+/**
  * Generate repaint events for the visible part of window w within the rectangle.
  *
  * The function goes recursively upwards in the window stack, and splits the rectangle
@@ -896,56 +968,9 @@ static bool MayBeShown(const Window *w)
  * @param right Right edge of the rectangle that should be repainted
  * @param bottom Bottom edge of the rectangle that should be repainted
  */
-static void DrawOverlappedWindow(Window *w, int left, int top, int right, int bottom)
+static inline void DrawOverlappedWindow(Window * const w, int left, int top, int right, int bottom)
 {
-	const Window *v;
-	FOR_ALL_WINDOWS_FROM_BACK_FROM(v, w->z_front) {
-		if (MayBeShown(v) &&
-				right > v->left &&
-				bottom > v->top &&
-				left < v->left + v->width &&
-				top < v->top + v->height) {
-			/* v and rectangle intersect with each other */
-			int x;
-
-			if (left < (x = v->left)) {
-				DrawOverlappedWindow(w, left, top, x, bottom);
-				DrawOverlappedWindow(w, x, top, right, bottom);
-				return;
-			}
-
-			if (right > (x = v->left + v->width)) {
-				DrawOverlappedWindow(w, left, top, x, bottom);
-				DrawOverlappedWindow(w, x, top, right, bottom);
-				return;
-			}
-
-			if (top < (x = v->top)) {
-				DrawOverlappedWindow(w, left, top, right, x);
-				DrawOverlappedWindow(w, left, x, right, bottom);
-				return;
-			}
-
-			if (bottom > (x = v->top + v->height)) {
-				DrawOverlappedWindow(w, left, top, right, x);
-				DrawOverlappedWindow(w, left, x, right, bottom);
-				return;
-			}
-
-			return;
-		}
-	}
-
-	/* Setup blitter, and dispatch a repaint event to window *wz */
-	DrawPixelInfo *dp = _cur_dpi;
-	dp->width = right - left;
-	dp->height = bottom - top;
-	dp->left = left - w->left;
-	dp->top = top - w->top;
-	dp->pitch = _screen.pitch;
-	dp->dst_ptr = BlitterFactory::GetCurrentBlitter()->MoveTo(_screen.dst_ptr, left, top);
-	dp->zoom = ZOOM_LVL_NORMAL;
-	w->OnPaint();
+	(DrawOverlappedWindowHelper(w))(w->z_front, left, top, right, bottom);
 }
 
 /**
@@ -965,11 +990,8 @@ void DrawOverlappedWindowForAll(int left, int top, int right, int bottom)
 	_cur_dpi = &bk;
 
 	FOR_ALL_WINDOWS_FROM_BACK(w) {
-		if (MayBeShown(w) &&
-				right > w->left &&
-				bottom > w->top &&
-				left < w->left + w->width &&
-				top < w->top + w->height) {
+		if (MayBeShown(w) && right > w->left && bottom > w->top && left < w->left + w->width && top < w->top + w->height) {
+
 			/* Window w intersects with the rectangle => needs repaint */
 			DrawOverlappedWindow(w, max(left, w->left), max(top, w->top), min(right, w->left + w->width), min(bottom, w->top + w->height));
 		}
